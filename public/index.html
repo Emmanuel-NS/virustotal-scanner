@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VirusTotal URL Scanner</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .loading {
+            text-align: center;
+            display: none;
+        }
+        .error {
+            background-color: #ffecec;
+            color: #f44336;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+            display: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .safe {
+            color: green;
+        }
+        .suspicious {
+            color: orange;
+        }
+        .malicious {
+            color: red;
+        }
+        .filter-sort {
+            display: flex;
+            justify-content: space-between;
+            margin: 15px 0;
+        }
+        .search-box {
+            margin-top: 15px;
+        }
+        #searchResults {
+            margin-top: 10px;
+        }
+        .header-section {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            border-radius: 8px 8px 0 0;
+            margin-bottom: 20px;
+        }
+        .header-section h1 {
+            color: white;
+            margin: 0;
+        }
+        .header-section p {
+            margin: 10px 0 0;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-section">
+            <h1>EMM3 URL Scanner</h1>
+            <p>Check if a URL is potentially malicious using EMM3 Scanner</p>
+        </div>
+        
+        <div class="form-group">
+            <label for="urlInput">URL to Scan:</label>
+            <input type="text" id="urlInput" placeholder="Enter a URL (e.g., https://example.com)" required>
+        </div>
+        
+        <button id="scanButton">Scan URL</button>
+        
+        <div id="loadingIndicator" class="loading">
+            <p>Scanning URL, please wait...</p>
+        </div>
+        
+        <div id="errorMessage" class="error"></div>
+        
+        <div id="scanResult" class="result">
+            <h2>Scan Results</h2>
+            
+            <div class="filter-sort">
+                <div>
+                    <label for="statusFilter">Filter by status:</label>
+                    <select id="statusFilter">
+                        <option value="all">All</option>
+                        <option value="clean">Clean</option>
+                        <option value="suspicious">Suspicious</option>
+                        <option value="malicious">Malicious</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="sortResults">Sort by:</label>
+                    <select id="sortResults">
+                        <option value="name">Engine Name</option>
+                        <option value="status">Status</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="search-box">
+                <label for="searchEngines">Search engines:</label>
+                <input type="text" id="searchEngines" placeholder="Type to search">
+            </div>
+            
+            <div id="scanSummary"></div>
+            
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>Engine</th>
+                        <th>Status</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('scanButton').addEventListener('click', scanUrl);
+        document.getElementById('statusFilter').addEventListener('change', filterResults);
+        document.getElementById('sortResults').addEventListener('change', sortResults);
+        document.getElementById('searchEngines').addEventListener('input', searchEngines);
+
+        let scanData = null;
+
+        // scanning url
+        function scanUrl() {
+    const url = document.getElementById('urlInput').value;
+    
+    if (!url) {
+        showError('Please enter a URL to scan.');
+        return;
+    }
+
+    // Validate URL
+    try {
+        new URL(url);
+    } catch (error) {
+        showError('Please enter a valid URL.');
+        return;
+    }
+
+    // Show loading indicator
+    document.getElementById('loadingIndicator').style.display = 'block';
+    document.getElementById('scanResult').style.display = 'none';
+    document.getElementById('errorMessage').style.display = 'none';
+
+    async function performScan() {
+        try {
+            // Call your backend API
+            const response = await fetch('/api/scan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.text(); // Change from .json() to .text()
+                throw new Error(errorData || 'Failed to scan URL');
+            }
+            
+            const analysisResults = await response.json();
+            
+            if (analysisResults && analysisResults.data && analysisResults.data.attributes) {
+                scanData = analysisResults;
+                displayResults(analysisResults);
+            } else {
+                showError('Failed to retrieve analysis results. Unexpected response format.');
+            }
+            
+        } catch (error) {
+            console.error('Scan error:', error);
+            showError('Error: ' + (error.message || 'Unknown error occurred'));
+        } finally {
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }
+    }
+
+    performScan();
+}
+function displayResults(data) {
+    const resultsBody = document.getElementById('resultsBody');
+    resultsBody.innerHTML = '';
+
+    // Enhanced error checking
+    if (!data || !data.data || !data.data.attributes) {
+        showError("Invalid API response structure");
+        return;
+    }
+
+    // Safely extract stats
+    const stats = data.data.attributes.stats || {};
+    const malicious = stats.malicious || 0;
+    const suspicious = stats.suspicious || 0;
+    const clean = stats.harmless || 0;
+    const undetected = stats.undetected || 0;
+
+    // Update the summary display
+    const scanSummary = document.getElementById('scanSummary');
+    scanSummary.innerHTML = `
+        <p><strong>URL:</strong> ${document.getElementById('urlInput').value}</p>
+        <p><strong>Summary:</strong> 
+            <span class="malicious">${malicious} malicious</span>, 
+            <span class="suspicious">${suspicious} suspicious</span>, 
+            <span class="safe">${clean} clean</span>,
+            <span class="undetected">${undetected} undetected</span>
+        </p>
+    `;
+
+    // Safely extract engine results
+    const engines = data.data.attributes.results || {};
+    if (Object.keys(engines).length === 0) {
+        console.error('No engine results found in the response');
+        showError('No engine results found.');
+        return;
+    }
+
+    // Populate results table
+    for (const engine in engines) {
+        const result = engines[engine];
+
+        const row = document.createElement('tr');
+        
+        // Safely set data-status
+        const status = result.category || 'unknown';
+        row.setAttribute('data-status', status);
+
+        const engineCell = document.createElement('td');
+        engineCell.textContent = engine;
+
+        const statusCell = document.createElement('td');
+        let statusClass = '';
+        let statusText = 'Undetected';
+
+        switch(result.category) {
+            case 'malicious':
+                statusClass = 'malicious';
+                statusText = 'Malicious';
+                break;
+            case 'suspicious':
+                statusClass = 'suspicious';
+                statusText = 'Suspicious';
+                break;
+            case 'harmless':
+                statusClass = 'clean';
+                statusText = 'Clean';
+                break;
+        }
+
+        statusCell.textContent = statusText;
+        
+        // Only add class if statusClass is not empty
+        if (statusClass) {
+            statusCell.classList.add(statusClass);
+        }
+
+        const resultCell = document.createElement('td');
+        resultCell.textContent = result.result || 'N/A';
+
+        row.appendChild(engineCell);
+        row.appendChild(statusCell);
+        row.appendChild(resultCell);
+        resultsBody.appendChild(row);
+    }
+
+    document.getElementById('scanResult').style.display = 'block';
+    filterResults();
+}
+
+function filterResults() {
+    const filter = document.getElementById('statusFilter').value;
+    const rows = document.getElementById('resultsBody').getElementsByTagName('tr');
+    
+    for (let i = 0; i < rows.length; i++) {
+        const status = rows[i].getAttribute('data-status');
+        
+        if (filter === 'all' || 
+            (filter === 'clean' && status === 'harmless') ||
+            (filter === 'suspicious' && status === 'suspicious') ||
+            (filter === 'malicious' && status === 'malicious')) {
+            rows[i].style.display = '';
+        } else {
+            rows[i].style.display = 'none';
+        }
+    }
+}
+
+        function sortResults() {
+            const sortBy = document.getElementById('sortResults').value;
+            const resultsBody = document.getElementById('resultsBody');
+            const rows = Array.from(resultsBody.getElementsByTagName('tr'));
+            
+            rows.sort((a, b) => {
+                if (sortBy === 'name') {
+                    return a.cells[0].textContent.localeCompare(b.cells[0].textContent);
+                } else { // sort by status
+                    const statusA = a.cells[1].textContent;
+                    const statusB = b.cells[1].textContent;
+                    
+                    // Custom order: Malicious, Suspicious, Clean, Undetected
+                    const order = { 'Malicious': 0, 'Suspicious': 1, 'Clean': 2, 'Undetected': 3 };
+                    return order[statusA] - order[statusB];
+                }
+            });
+            
+            // Clear and re-append sorted rows
+            while (resultsBody.firstChild) {
+                resultsBody.removeChild(resultsBody.firstChild);
+            }
+            
+            rows.forEach(row => resultsBody.appendChild(row));
+        }
+
+        function searchEngines() {
+            const searchText = document.getElementById('searchEngines').value.toLowerCase();
+            const rows = document.getElementById('resultsBody').getElementsByTagName('tr');
+            
+            for (let i = 0; i < rows.length; i++) {
+                const engineName = rows[i].cells[0].textContent.toLowerCase();
+                
+                if (engineName.includes(searchText)) {
+                    if (rows[i].style.display !== 'none') {
+                        rows[i].style.display = '';
+                    }
+                } else {
+                    rows[i].style.display = 'none';
+                }
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
