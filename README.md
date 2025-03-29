@@ -19,7 +19,7 @@ A web application that allows users to scan URLs for potential security risks us
 
 ## Demo-Video
 
-[Watch the demo on YouTube](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
+[![Watch the video](https://img.youtube.com/vi/cUHzh5Bg4k8/0.jpg)](https://youtu.be/cUHzh5Bg4k8)
 
 ## Features
 
